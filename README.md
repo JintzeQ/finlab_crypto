@@ -53,6 +53,61 @@ portfolio = sma_strategy.backtest(ohlcv, vars, freq='4h', plot=True)
 ```
 ![image](https://media.giphy.com/media/tv4xpwJ3T1zJGV6Smj/giphy.gif)
 
+### Short-term helpers
+
+Run a ready-made stochastic oscillator crossover using the TA-Lib factory:
+
+```python
+from strategies.stoch import StochasticStrategy
+
+portfolio = StochasticStrategy.backtest(
+    ohlcv,
+    variables={
+        'fastk_period': 14,
+        'slowk_period': 3,
+        'slowd_period': 3,
+    },
+    freq='4h',
+    plot=False,
+)
+
+stats = portfolio.stats()
+print(stats[['Total Return [%]', 'Sharpe Ratio', 'Win Rate [%]']])
+```
+
+Quickly rank the strongest short-term factors (RSI, MACD, Bollinger, Stochastic, etc.) and show the top 3:
+
+```python
+from strategies.short_term_factors import fetch_and_rank_top_factors
+
+top_factors = fetch_and_rank_top_factors(symbol='BTCUSDT', interval='4h', top_n=3)
+for result in top_factors:
+    print(result)
+```
+
+Run a parameter sweep with walk-forward validation to surface the 5 most stable short-term factors (guarding against parameter decay):
+
+```python
+from strategies.short_term_factors import fetch_and_tune_top_factors
+
+stable_factors = fetch_and_tune_top_factors(
+    symbol='BTCUSDT',
+    interval='4h',
+    top_n=5,
+    train_ratio=0.7,   # 70% train, 30% forward test
+    min_decay=0.6,     # drop unstable configs where test return collapses
+)
+
+for result in stable_factors:
+    print(
+        f"{result.name}: params={result.params} "
+        f"train={result.train_return_pct:.1f}% test={result.test_return_pct:.1f}% "
+        f"decay={result.decay_ratio:.2f} score={result.score:.2f}"
+    )
+```
+
+The helper evaluates Stochastic, RSI, MACD, Bollinger, breakout, SMA cross, and trend filters across curated short-term parameter grids, then ranks the best-performing sets by out-of-sample returns multiplied by a decay penalty to avoid fragile fits.
+
 ### Optimization
 ``` python
 import numpy as np
