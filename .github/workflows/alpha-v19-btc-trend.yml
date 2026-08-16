@@ -1,0 +1,21 @@
+name: alpha-v19-btc-trend
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'alpha_v19_btc_trend.py'
+      - '.github/workflows/alpha-v19-btc-trend.yml'
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy pandas
+      - run: python alpha_v19_btc_trend.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-v19-output
+          path: alpha_v19_output/
