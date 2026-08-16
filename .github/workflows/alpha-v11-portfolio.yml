@@ -1,0 +1,20 @@
+name: alpha-v11-portfolio
+on:
+  push:
+    branches: [chatgpt-alpha-v11-portfolio-20260816]
+  workflow_dispatch:
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy pandas
+      - run: python alpha_v11_portfolio.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-v11-output
+          path: alpha_v11_output/
