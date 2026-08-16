@@ -1,0 +1,22 @@
+name: alpha-v18-metrics
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'alpha_v18_metrics_diversifier.py'
+      - '.github/workflows/alpha-v18-metrics.yml'
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy pandas requests
+      - run: python alpha_v18_metrics_diversifier.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-v18-output
+          path: alpha_v18_output/
