@@ -13,6 +13,17 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install numpy pandas
+      - name: Patch current Binance Vision funding schema
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('alpha_v9_benchmark_funding.py')
+          s=p.read_text()
+          old="r=pd.to_numeric(d['funding_rate'],errors='coerce')"
+          new="r1=pd.to_numeric(d['funding_rate'],errors='coerce'); r2=pd.to_numeric(d['symbol'],errors='coerce') if 'symbol' in d.columns else pd.Series(np.nan,index=d.index); r=r2 if (r2.notna().mean()>0.5 and r2.abs().median()<0.1) else r1"
+          if old not in s: raise SystemExit('target line not found')
+          p.write_text(s.replace(old,new))
+          PY
       - run: python alpha_v9_benchmark_funding.py
       - uses: actions/upload-artifact@v4
         with:
