@@ -17,7 +17,10 @@ def fetch_metric_day(sym,day):
       z=zipfile.ZipFile(io.BytesIO(r.content));df=pd.read_csv(z.open(z.namelist()[0]))
       if set(MCOLS).issubset(df.columns): df=df[MCOLS]
       else: df=pd.read_csv(z.open(z.namelist()[0]),header=None,names=MCOLS)
-      x=pd.to_numeric(df['create_time'],errors='coerce');unit='ms' if x.dropna().median()>1e11 else 's';df['time']=pd.to_datetime(x,unit=unit,utc=True)
+      rawt=df['create_time'];x=pd.to_numeric(rawt,errors='coerce')
+      if x.notna().mean()>.8:
+        unit='ms' if x.dropna().median()>1e11 else 's';df['time']=pd.to_datetime(x,unit=unit,utc=True,errors='coerce')
+      else: df['time']=pd.to_datetime(rawt,utc=True,errors='coerce')
       for c in MCOLS[2:]:df[c]=pd.to_numeric(df[c],errors='coerce')
       return sym,df[['time']+MCOLS[2:]].dropna(subset=['time'])
     except Exception:return sym,None
@@ -80,4 +83,4 @@ def main():
   out={'goal':'CAGR>=95% RMS and MDD<15%; DEV-only strategy/allocation selection','data':'Binance Vision daily futures metrics 5m: OI, top/global L/S ratios, taker ratio','baseline_rms':{'dev':rdev,'full':rfull},'candidate_results':cres,'candidate_selection':'DEV only: Sharpe>0, |corr RMS|<=.40, |corr FCD|<=.40; maximize Sharpe*(1-|corrR|)*(1-|corrF|)','winner':winner,'winner_result':cres[winner],'chosen_allocation':chosen,'chosen_result':alloc[chosen],'dev_goal_count':len(devgoal),'dev_goal_names':devgoal,'full_goal_count_descriptive_only':len(fullgoal),'full_goal_names_descriptive_only':fullgoal,'allocation_selection':'DEV only: minimize abs MDD subject CAGR>=95% RMS DEV','all_allocations':alloc}
   Path('alpha_v18_output').mkdir(exist_ok=True);json.dump(out,open('alpha_v18_output/summary.json','w'),indent=2,allow_nan=True);print(json.dumps(out,indent=2,allow_nan=True),flush=True)
 if __name__=='__main__':main()
-# trigger-v18-utc
+# trigger-v18-parser
