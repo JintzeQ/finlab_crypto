@@ -1,0 +1,21 @@
+name: alpha-v20-conditional-btc
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'alpha_v20_conditional_btc.py'
+      - '.github/workflows/alpha-v20-conditional-btc.yml'
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy pandas
+      - run: python alpha_v20_conditional_btc.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-v20-output
+          path: alpha_v20_output/
