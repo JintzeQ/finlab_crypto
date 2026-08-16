@@ -1,0 +1,24 @@
+name: chatgpt-binance-1h-backtest-fast
+on:
+  push:
+    branches: [chatgpt-backtest-20260816]
+  workflow_dispatch:
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install --quiet numpy pandas
+      - name: Run fast backtest
+        run: python chatgpt_backtest_fast.py
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-backtest-fast-output
+          path: backtest_output
