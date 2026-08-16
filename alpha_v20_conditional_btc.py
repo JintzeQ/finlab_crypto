@@ -110,7 +110,6 @@ def main():
     for n,p in params.items():
         if n==chosen: continue
         diffs=[abs(p[i]-cw[i]) for i in range(4)]
-        # one immediate grid move: 5% allocation or 0.1 scalar; wr co-moves when wf/wb changes.
         alloc_step=(sum(d>1e-9 for d in diffs[:3])==2 and max(diffs[:3])<=.051 and diffs[3]<1e-9)
         lev_step=(sum(d>1e-9 for d in diffs[:3])==0 and 0.099<=diffs[3]<=.101)
         if alloc_step or lev_step: neighbors.append(n)
@@ -118,6 +117,7 @@ def main():
     chosen_dev=alloc[chosen]['dev']
     robust_good=[n for n in neighbors if alloc[n]['dev']['MaxDD']>HARD_MDD and alloc[n]['dev']['CAGR']>=.90*chosen_dev['CAGR']]
     robust_ratio=(len(robust_good)/len(neighbors)) if neighbors else 0.0
+    hard_gate=bool(chosen_dev['dev']['CAGR']>=HARD_CAGR and chosen_dev['dev']['MaxDD']>HARD_MDD) if 'dev' in chosen_dev else False
     hard_gate=bool(chosen_dev['CAGR']>=HARD_CAGR and chosen_dev['MaxDD']>HARD_MDD)
     robustness_gate=bool(neighbors and robust_ratio>=.50)
 
@@ -148,3 +148,4 @@ def main():
     print(json.dumps(out,indent=2,allow_nan=True),flush=True)
 
 if __name__=='__main__': main()
+# v20 execution trigger; parameters above remain frozen.
