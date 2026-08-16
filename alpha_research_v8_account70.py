@@ -38,27 +38,21 @@ def cohort_weights(sig,reb=48,phase=0):
  return pd.DataFrame(out,index=sig.index,columns=sig.columns)
 def staggered(sig): return sum((cohort_weights(sig,48,p) for p in range(48)))/48
 
-def simulate(W,op,initial=70.0,fee_bps=5.0,slip_bps=0.0,funding_bps_8h=0.0,min_notional=0.0,leverage=1.0):
- idx=W.index; qty=pd.Series(0.0,index=ALTS); eq=initial; peak=initial; min_eq=initial; maxdd=0.; fees=slips=funds=turn=0.; trades=skipped=0; rows=[]
- for t in idx:
-  p1=op.loc[t+pd.Timedelta(hours=1),ALTS] if t+pd.Timedelta(hours=1) in op.index else pd.Series(np.nan,index=ALTS)
-  p2=op.loc[t+pd.Timedelta(hours=2),ALTS] if t+pd.Timedelta(hours=2) in op.index else pd.Series(np.nan,index=ALTS)
-  tradable=np.isfinite(p1)&np.isfinite(p2)
-  if tradable.sum()<6: rows.append((t,eq,0,0,maxdd)); continue
-  target_notional=W.loc[t].fillna(0)*eq*leverage; cur_notional=pd.Series(0.0,index=ALTS); cur_notional.loc[tradable]=qty.loc[tradable]*p1.loc[tradable]; delta=target_notional-cur_notional
-  for s in np.array(ALTS)[tradable.values]:
-   dn=float(delta[s])
-   if abs(dn)<1e-12: continue
-   if abs(dn)<min_notional: skipped+=1; continue
-   dq=dn/p1[s]; qty[s]+=dq; traded=abs(dn); turn+=traded; trades+=1; fees+=traded*fee_bps/1e4; slips+=traded*slip_bps/1e4; eq-=traded*(fee_bps+slip_bps)/1e4
-  gross=float((qty.loc[tradable].abs()*p1.loc[tradable]).sum())
-  fund=gross*funding_bps_8h/1e4 if t.hour%8==0 else 0.; funds+=fund; eq-=fund
-  pnl=float((qty.loc[tradable]*(p2.loc[tradable]-p1.loc[tradable])).sum()); eq+=pnl
-  peak=max(peak,eq); min_eq=min(min_eq,eq); dd=eq/peak-1 if peak>0 else -1.; maxdd=min(maxdd,dd)
-  rows.append((t,eq,pnl,gross,dd))
+def simulate(Wa,p1a,p2a,hours,initial=70.0,fee_bps=5.0,slip_bps=0.0,funding_bps_8h=0.0,min_notional=0.0,leverage=1.0):
+ qty=np.zeros(len(ALTS)); eq=initial; peak=initial; min_eq=initial; maxdd=0.; fees=slips=funds=turn=0.; trades=skipped=0; equities=[]; grosses=[]
+ for i in range(len(Wa)):
+  p1=p1a[i]; p2=p2a[i]; trad=np.isfinite(p1)&np.isfinite(p2)
+  if trad.sum()<6:
+   equities.append(eq); grosses.append(0.); continue
+  target=np.nan_to_num(Wa[i],nan=0.0)*eq*leverage; cur=np.zeros(len(ALTS)); cur[trad]=qty[trad]*p1[trad]; delta=target-cur
+  nz=trad & (np.abs(delta)>1e-12); eligible=nz & (np.abs(delta)>=min_notional); skipped+=int((nz & ~eligible).sum())
+  if eligible.any():
+   traded=np.abs(delta[eligible]); tv=float(traded.sum()); turn+=tv; trades+=int(eligible.sum()); fees+=tv*fee_bps/1e4; slips+=tv*slip_bps/1e4; eq-=tv*(fee_bps+slip_bps)/1e4; qty[eligible]+=delta[eligible]/p1[eligible]
+  gross=float(np.abs(qty[trad]*p1[trad]).sum()); fund=gross*funding_bps_8h/1e4 if hours[i]%8==0 else 0.; funds+=fund; eq-=fund
+  eq+=float((qty[trad]*(p2[trad]-p1[trad])).sum()); peak=max(peak,eq); min_eq=min(min_eq,eq); maxdd=min(maxdd,eq/peak-1 if peak>0 else -1.); equities.append(eq); grosses.append(gross)
   if eq<=0: break
- d=pd.DataFrame(rows,columns=['time','equity','pnl','gross_notional','dd']).set_index('time'); n=len(d); yrs=n/HRY; r=d.equity.pct_change().fillna(0); sd=r.std(ddof=1); sh=r.mean()/sd*math.sqrt(HRY) if sd>0 else np.nan
- return {'final_equity':float(eq),'return_pct':float((eq/initial-1)*100),'CAGR':float((eq/initial)**(1/yrs)-1) if eq>0 and yrs>0 else -1,'Sharpe':float(sh),'MaxDD':float(maxdd),'min_equity':float(min_eq),'fees_usdt':float(fees),'slippage_usdt':float(slips),'funding_usdt':float(funds),'traded_notional_usdt':float(turn),'trade_count':int(trades),'skipped_small_deltas':int(skipped),'avg_gross_notional':float(d.gross_notional.mean()) if n else 0.0,'max_gross_notional':float(d.gross_notional.max()) if n else 0.0}
+ e=np.asarray(equities); r=np.zeros(len(e)); r[1:]=e[1:]/e[:-1]-1; sd=r.std(ddof=1) if len(r)>1 else np.nan; sh=r.mean()/sd*math.sqrt(HRY) if np.isfinite(sd) and sd>0 else np.nan; yrs=len(e)/HRY
+ return {'final_equity':float(eq),'return_pct':float((eq/initial-1)*100),'CAGR':float((eq/initial)**(1/yrs)-1) if eq>0 and yrs>0 else -1,'Sharpe':float(sh),'MaxDD':float(maxdd),'min_equity':float(min_eq),'fees_usdt':float(fees),'slippage_usdt':float(slips),'funding_usdt':float(funds),'traded_notional_usdt':float(turn),'trade_count':int(trades),'skipped_small_deltas':int(skipped),'avg_gross_notional':float(np.mean(grosses)) if grosses else 0.0,'max_gross_notional':float(np.max(grosses)) if grosses else 0.0}
 
 def main():
  raw={}
@@ -66,11 +60,10 @@ def main():
   fs={ex.submit(load,s):s for s in SYMS}
   for f in as_completed(fs): raw[fs[f]]=f.result(); print('DATA',fs[f],len(raw[fs[f]]),flush=True)
  idx=pd.date_range(START,END-pd.Timedelta(hours=1),freq='h'); cl=pd.DataFrame({s:raw[s].close.reindex(idx) for s in SYMS}); op=pd.DataFrame({s:raw[s].open.reindex(idx) for s in SYMS}); sig=signal_for(cl); W=staggered(sig)
- sl=W.index>=pd.Timestamp('2022-07-01',tz='UTC'); W=W.loc[sl]; op=op.reindex(pd.date_range(W.index.min(),END+pd.Timedelta(hours=2),freq='h'))
- gross=W.abs().sum(axis=1); net=W.sum(axis=1)
- out={'audit':{'mean_target_gross':float(gross.mean()),'max_target_gross':float(gross.max()),'mean_abs_net':float(net.abs().mean()),'max_abs_net':float(net.abs().max()),'cohort_count':48,'aggregation':'sum of 48 cohort weights divided by 48; only aggregate net delta is executed'},'scenarios':{}}
+ W=W.loc[W.index>=pd.Timestamp('2022-07-01',tz='UTC')]; p1=op[ALTS].reindex(W.index+pd.Timedelta(hours=1)).to_numpy(float); p2=op[ALTS].reindex(W.index+pd.Timedelta(hours=2)).to_numpy(float); Wa=W.to_numpy(float); hours=W.index.hour.to_numpy()
+ gross=W.abs().sum(axis=1); net=W.sum(axis=1); out={'audit':{'mean_target_gross':float(gross.mean()),'max_target_gross':float(gross.max()),'mean_abs_net':float(net.abs().mean()),'max_abs_net':float(net.abs().max()),'cohort_count':48,'aggregation':'sum of 48 cohort weights divided by 48; only aggregate net delta is executed'},'scenarios':{}}
  scenarios=[('ideal_fee5',5,0,0,0,1),('min5_fee5',5,0,0,5,1),('min5_fee5_slip2',5,2,0,5,1),('min5_fee5_slip2_fund1',5,2,1,5,1),('min5_fee5_slip5_fund1',5,5,1,5,1),('min10_fee5_slip2_fund1',5,2,1,10,1)]
  for name,fee,slip,fund,mn,lev in scenarios:
-  print('RUN',name,flush=True); out['scenarios'][name]=simulate(W,op,70,fee,slip,fund,mn,lev)
+  print('RUN',name,flush=True); out['scenarios'][name]=simulate(Wa,p1,p2,hours,70,fee,slip,fund,mn,lev)
  Path('alpha_v8_account70_output').mkdir(exist_ok=True); json.dump(out,open('alpha_v8_account70_output/summary.json','w'),indent=2,allow_nan=True); print(json.dumps(out,indent=2),flush=True)
 if __name__=='__main__': main()
