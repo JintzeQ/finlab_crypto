@@ -43,17 +43,17 @@ def simulate(W,op,initial=70.0,fee_bps=5.0,slip_bps=0.0,funding_bps_8h=0.0,min_n
  for t in idx:
   p1=op.loc[t+pd.Timedelta(hours=1),ALTS] if t+pd.Timedelta(hours=1) in op.index else pd.Series(np.nan,index=ALTS)
   p2=op.loc[t+pd.Timedelta(hours=2),ALTS] if t+pd.Timedelta(hours=2) in op.index else pd.Series(np.nan,index=ALTS)
-  if not np.isfinite(p1).all() or not np.isfinite(p2).all(): rows.append((t,eq,0,0,0)); continue
-  target_notional=W.loc[t].fillna(0)*eq*leverage; cur_notional=qty*p1; delta=target_notional-cur_notional
-  for s in ALTS:
+  tradable=np.isfinite(p1)&np.isfinite(p2)
+  if tradable.sum()<6: rows.append((t,eq,0,0,maxdd)); continue
+  target_notional=W.loc[t].fillna(0)*eq*leverage; cur_notional=pd.Series(0.0,index=ALTS); cur_notional.loc[tradable]=qty.loc[tradable]*p1.loc[tradable]; delta=target_notional-cur_notional
+  for s in np.array(ALTS)[tradable.values]:
    dn=float(delta[s])
    if abs(dn)<1e-12: continue
-   # Exchange-level aggregate execution: trade only net delta; tiny deltas wait until they accumulate above min_notional.
    if abs(dn)<min_notional: skipped+=1; continue
    dq=dn/p1[s]; qty[s]+=dq; traded=abs(dn); turn+=traded; trades+=1; fees+=traded*fee_bps/1e4; slips+=traded*slip_bps/1e4; eq-=traded*(fee_bps+slip_bps)/1e4
-  gross=float((qty.abs()*p1).sum())
-  fund= gross*funding_bps_8h/1e4 if t.hour%8==0 else 0.; funds+=fund; eq-=fund
-  pnl=float((qty*(p2-p1)).sum()); eq+=pnl
+  gross=float((qty.loc[tradable].abs()*p1.loc[tradable]).sum())
+  fund=gross*funding_bps_8h/1e4 if t.hour%8==0 else 0.; funds+=fund; eq-=fund
+  pnl=float((qty.loc[tradable]*(p2.loc[tradable]-p1.loc[tradable])).sum()); eq+=pnl
   peak=max(peak,eq); min_eq=min(min_eq,eq); dd=eq/peak-1 if peak>0 else -1.; maxdd=min(maxdd,dd)
   rows.append((t,eq,pnl,gross,dd))
   if eq<=0: break
