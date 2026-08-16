@@ -1,0 +1,20 @@
+name: alpha-v9-benchmark-funding
+on:
+  push:
+    branches: [chatgpt-alpha-v9-benchmark-funding-20260816]
+  workflow_dispatch:
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy pandas
+      - run: python alpha_v9_benchmark_funding.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-v9-output
+          path: alpha_v9_output/
