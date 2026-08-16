@@ -7,7 +7,7 @@ import alpha_v12_portfolio as v12
 m=v12.m; v11=v12.v11; m.load_funding=v11.robust_load_funding
 BASE='https://data.binance.vision/data/futures/um/daily/metrics'
 MCOLS=['create_time','symbol','sum_open_interest','sum_open_interest_value','count_toptrader_long_short_ratio','sum_toptrader_long_short_ratio','count_long_short_ratio','sum_taker_long_short_vol_ratio']
-MSTART=pd.Timestamp('2022-06-01'); MEND=m.END-pd.Timedelta(days=1)
+MSTART=pd.Timestamp('2022-06-01',tz='UTC'); MEND=m.END-pd.Timedelta(days=1)
 
 def fetch_metric_day(sym,day):
     ds=day.strftime('%Y-%m-%d');url=f'{BASE}/{sym}/{sym}-metrics-{ds}.zip'
@@ -16,9 +16,8 @@ def fetch_metric_day(sym,day):
       if r.status_code!=200:return sym,None
       z=zipfile.ZipFile(io.BytesIO(r.content));df=pd.read_csv(z.open(z.namelist()[0]))
       if set(MCOLS).issubset(df.columns): df=df[MCOLS]
-      else:
-        df=pd.read_csv(z.open(z.namelist()[0]),header=None,names=MCOLS)
-      x=pd.to_numeric(df['create_time'],errors='coerce');unit='ms' if x.dropna().median()>1e11 else 's';df['time']=pd.to_datetime(x,unit=unit,utc=True).dt.tz_convert(None)
+      else: df=pd.read_csv(z.open(z.namelist()[0]),header=None,names=MCOLS)
+      x=pd.to_numeric(df['create_time'],errors='coerce');unit='ms' if x.dropna().median()>1e11 else 's';df['time']=pd.to_datetime(x,unit=unit,utc=True)
       for c in MCOLS[2:]:df[c]=pd.to_numeric(df[c],errors='coerce')
       return sym,df[['time']+MCOLS[2:]].dropna(subset=['time'])
     except Exception:return sym,None
@@ -81,4 +80,4 @@ def main():
   out={'goal':'CAGR>=95% RMS and MDD<15%; DEV-only strategy/allocation selection','data':'Binance Vision daily futures metrics 5m: OI, top/global L/S ratios, taker ratio','baseline_rms':{'dev':rdev,'full':rfull},'candidate_results':cres,'candidate_selection':'DEV only: Sharpe>0, |corr RMS|<=.40, |corr FCD|<=.40; maximize Sharpe*(1-|corrR|)*(1-|corrF|)','winner':winner,'winner_result':cres[winner],'chosen_allocation':chosen,'chosen_result':alloc[chosen],'dev_goal_count':len(devgoal),'dev_goal_names':devgoal,'full_goal_count_descriptive_only':len(fullgoal),'full_goal_names_descriptive_only':fullgoal,'allocation_selection':'DEV only: minimize abs MDD subject CAGR>=95% RMS DEV','all_allocations':alloc}
   Path('alpha_v18_output').mkdir(exist_ok=True);json.dump(out,open('alpha_v18_output/summary.json','w'),indent=2,allow_nan=True);print(json.dumps(out,indent=2,allow_nan=True),flush=True)
 if __name__=='__main__':main()
-# trigger-v18
+# trigger-v18-utc
