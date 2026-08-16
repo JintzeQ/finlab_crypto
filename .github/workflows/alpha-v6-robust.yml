@@ -1,0 +1,20 @@
+name: alpha-v6-robustness
+on:
+  push:
+    branches: [chatgpt-alpha-v6-robust-20260816]
+  workflow_dispatch:
+jobs:
+  research:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet numpy pandas
+      - run: python alpha_robust_v6.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-v6-robust-output
+          path: alpha_v6_robust
