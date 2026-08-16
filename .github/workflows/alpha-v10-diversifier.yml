@@ -13,7 +13,15 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install numpy pandas
-      - run: python alpha_v10_diversifier.py
+      - run: python alpha_v10_diversifier_fixed.py
+      - run: |
+          python - <<'PY'
+          import json,math
+          d=json.load(open('alpha_v10_output/summary.json'))
+          x=d['baseline_rms48']['full']['final']
+          assert math.isfinite(x) and 180 < x < 300, f'RMS48 baseline sanity failed: {x}'
+          print('RMS48_BASELINE_OK',x)
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: alpha-v10-output
