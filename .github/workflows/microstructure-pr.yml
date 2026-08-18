@@ -1,0 +1,50 @@
+name: microstructure-backtest-pr
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'research/microstructure/**'
+      - '.github/workflows/microstructure-pr.yml'
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: research/microstructure/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r research/microstructure/requirements.txt
+
+      - name: Run BTCUSDT microstructure pilot
+        run: |
+          python research/microstructure/backtest.py \
+            --symbol BTCUSDT \
+            --start 2026-08-10 \
+            --end 2026-08-16 \
+            --train-end 2026-08-13 \
+            --bin-ms 500 \
+            --out results
+
+      - name: Publish summary
+        if: always()
+        run: |
+          if [ -f results/summary.md ]; then
+            cat results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: microstructure-results
+          path: results/
+          if-no-files-found: warn
